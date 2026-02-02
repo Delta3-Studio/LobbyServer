@@ -1,11 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
 
 namespace LobbyServer;
 
-public class UdpListenerService(
+public partial class UdpListenerService(
     LobbyRepository repository,
     TimeProvider time,
     IOptions<AppSettings> settings,
@@ -15,7 +15,7 @@ public class UdpListenerService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var port = settings.Value.UdpPort;
-        var ackMsg = "ack"u8.ToArray();
+        ReadOnlyMemory<byte> ackMsg = "ack"u8.ToArray();
         logger.LogInformation("UDP BINDING HOST: {Host}", settings.Value.UdpHost);
 
         var hostAddresses =
@@ -29,11 +29,11 @@ public class UdpListenerService(
         socket.Blocking = false;
 
         IPEndPoint bindEndpoint = new(bindAddress, port);
-        logger.LogInformation("UDP: starting socket at {Endpoint}", bindEndpoint);
+        logger.LogInformation("UDP: Starting socket at {Endpoint}", bindEndpoint);
         socket.Bind(bindEndpoint);
         IPEndPoint anyEndPoint = new(IPAddress.Any, 0);
 
-        var buffer = GC.AllocateArray<byte>(36, pinned: true);
+        var buffer = GC.AllocateArray<byte>(Unsafe.SizeOf<Guid>(), pinned: true);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -42,28 +42,22 @@ public class UdpListenerService(
                     .ReceiveFromAsync(buffer, SocketFlags.None, anyEndPoint, stoppingToken)
                     .ConfigureAwait(false);
 
-                if (received is not
-                    { ReceivedBytes: var receivedSize, RemoteEndPoint: IPEndPoint remoteEndPoint })
+                if (received is not { ReceivedBytes: var receivedSize, RemoteEndPoint: IPEndPoint remoteEndPoint }
+                    || receivedSize is 0)
                     continue;
 
-                if (received.ReceivedBytes is 0)
-                    continue;
+                LogReceived(logger, receivedSize, remoteEndPoint);
 
-                logger.LogInformation("UDP: Received {Size} bytes from {Endpoint}",
-                    receivedSize, remoteEndPoint);
+                Guid peerToken = new(buffer.AsSpan(0, receivedSize), true);
+                if (peerToken == Guid.Empty) continue;
 
-                if (!Guid.TryParse(Encoding.UTF8.GetString(buffer), out var peerToken))
-                    continue;
+                if (repository.FindEntry(peerToken) is not { } entry) continue;
+                LogPlayerFound(logger, entry.Peer.Username, entry.Peer.Endpoint);
 
                 await socket.SendToAsync(ackMsg, SocketFlags.None, remoteEndPoint, stoppingToken);
 
-                if (repository.FindEntry(peerToken) is not { } entry)
-                    continue;
-
                 if (entry.Peer.Endpoint is not null && !entry.Peer.Endpoint.Equals(remoteEndPoint))
-                    logger.LogInformation(
-                        "UDP: player {Name} changed address from {OldEndpoint} to {NewEndpoint}",
-                        entry.Peer.Username, entry.Peer.Endpoint, remoteEndPoint);
+                    LogPlayerAddressChanged(logger, entry.Peer.Username, entry.Peer.Endpoint, remoteEndPoint);
 
                 entry.Peer.Endpoint = remoteEndPoint;
                 entry.LastRead = time.GetUtcNow();
@@ -71,7 +65,7 @@ public class UdpListenerService(
             catch (OperationCanceledException)
             {
 #pragma warning disable S6667
-                logger.LogInformation("UDP: operation cancelled");
+                logger.LogInformation("UDP: Operation cancelled");
 #pragma warning restore S6667
                 break;
             }
@@ -83,4 +77,14 @@ public class UdpListenerService(
 
         logger.LogInformation("UDP: stopping");
     }
+
+    [LoggerMessage(LogLevel.Debug, "UDP: Found player '{name}' for address {endpoint}")]
+    static partial void LogPlayerFound(ILogger<UdpListenerService> logger, string name, IPEndPoint? endpoint);
+
+    [LoggerMessage(LogLevel.Debug, "UDP: Received {size} bytes from {endpoint}")]
+    static partial void LogReceived(ILogger<UdpListenerService> logger, int size, IPEndPoint endpoint);
+
+    [LoggerMessage(LogLevel.Information, "UDP: Player '{name}' changed address from {oldEndpoint} to {newEndpoint}")]
+    static partial void LogPlayerAddressChanged(ILogger<UdpListenerService> logger,
+        string name, IPEndPoint oldEndpoint, IPEndPoint newEndpoint);
 }

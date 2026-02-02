@@ -56,7 +56,7 @@ public sealed class Lobby(
     public DateTimeOffset CreatedAt { get; } = createdAt;
 
     public DateTimeOffset ExpiresAt => CreatedAt + expiration;
-    public int MaxPlayers { get; } = maxPlayers ?? DefaultMaxPlayers;
+    public int MaxPlayers { get; } = maxPlayers is null or 0 ? DefaultMaxPlayers : maxPlayers.Value;
 
     public bool Ready =>
         Players.Count() > 1 && Players.All(p => p is { Connected: true, Ready: true })

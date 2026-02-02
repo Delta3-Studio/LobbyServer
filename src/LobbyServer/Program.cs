@@ -15,6 +15,7 @@ builder.Services.AddOptions<AppSettings>().BindConfiguration("");
 builder.Services
     .ConfigureHttpJsonOptions(o => o.SerializerOptions.AddCustomConverters())
     .Configure<JsonOptions>(o => o.JsonSerializerOptions.AddCustomConverters())
+    .Configure<ForwardedHeadersOptions>(o => o.ForwardedHeaders = ForwardedHeaders.XForwardedFor)
     .AddEndpointsApiExplorer()
     .AddSwaggerGen(options =>
     {
@@ -29,7 +30,6 @@ builder.Services
             Version = currentVersion,
         });
     })
-    .Configure<ForwardedHeadersOptions>(o => o.ForwardedHeaders = ForwardedHeaders.XForwardedFor)
     .AddMemoryCache()
     .AddHealthChecks();
 
