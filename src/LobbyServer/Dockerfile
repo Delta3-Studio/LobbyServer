@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+﻿FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 # build application
 COPY ./ /build
 WORKDIR /build
@@ -9,7 +9,7 @@ RUN dotnet publish \
     /p:PublishSingleFile=true
 
 # final stage/image
-FROM mcr.microsoft.com/dotnet/runtime-deps:8.0-alpine-amd64 as final
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine-amd64 AS final
 EXPOSE 8888
 EXPOSE 9999
 WORKDIR /app

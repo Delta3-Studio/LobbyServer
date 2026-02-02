@@ -12,11 +12,11 @@ public sealed class LobbyRepository(
 {
     public EnterLobbyResponse? EnterOrCreate(IPAddress remote, EnterLobbyRequest req)
     {
-        var lobbyName = req.LobbyName.NormalizeName();
+        var lobbyName = req.LobbyName.Normalized();
         var lobbyKey = MountLobbyKey(lobbyName);
-        var userName = req.Username.NormalizeName();
+        var userName = req.Username.Normalized();
         var expiration = settings.Value.LobbyExpiration;
-        var peerId = Guid.NewGuid();
+        var peerId = Guid.CreateVersion7();
         var now = time.GetUtcNow();
 
         var lobby = cache.GetOrCreate(lobbyKey, e =>
@@ -65,11 +65,11 @@ public sealed class LobbyRepository(
 
     public Lobby? FindLobby(string name)
     {
-        var key = MountLobbyKey(name.NormalizeName());
+        var key = MountLobbyKey(name.Normalized());
         return cache.Get<Lobby>(key);
     }
 
-    static string MountLobbyKey(string name) => name.WithPrefix("lobby_");
+    static string MountLobbyKey(string name) => name.Prefixed("lobby_");
 
     public LobbyEntry? FindEntry(Guid peerToken)
     {

@@ -1,8 +1,11 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Backdash.JsonConverters;
+using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace LobbyServer;
 
@@ -22,17 +25,16 @@ public static partial class Extensions
         return result?.MapToIPv4();
     }
 
-    public static string NormalizeName(this string name) =>
-        MyRegex().Replace(name.Trim().ToLower(), "_");
+    public static SwaggerGenOptions MapStringType<T>(this SwaggerGenOptions options, string? example = null)
+    {
+        options.MapType<T>(() => new OpenApiSchema
+        {
+            Type = JsonSchemaType.String,
+            Example = JsonValue.Create(example),
+        });
 
-    public static string WithPrefix(this string value, string prefix) => $"{prefix}::{value}";
-
-    static readonly JsonConverter[] customJsonConverters =
-    [
-        new JsonStringEnumConverter(),
-        new JsonIPAddressConverter(),
-        new JsonIPEndPointConverter(),
-    ];
+        return options;
+    }
 
     public static void AddCustomConverters(this JsonSerializerOptions options)
     {
@@ -40,6 +42,19 @@ public static partial class Extensions
             options.Converters.Add(converter);
     }
 
+    extension(string name)
+    {
+        public string Normalized() => MyRegex().Replace(name.Trim().ToLower(), "_");
+        public string Prefixed(string prefix) => $"{prefix}::{name}";
+    }
+
     [GeneratedRegex("[^a-zA-Z0-9]")]
     private static partial Regex MyRegex();
+
+    static readonly JsonConverter[] customJsonConverters =
+    [
+        new JsonStringEnumConverter(),
+        new JsonIPAddressConverter(),
+        new JsonIPEndPointConverter(),
+    ];
 }

@@ -31,7 +31,6 @@ public class UdpListenerService(
         IPEndPoint bindEndpoint = new(bindAddress, port);
         logger.LogInformation("UDP: starting socket at {Endpoint}", bindEndpoint);
         socket.Bind(bindEndpoint);
-
         IPEndPoint anyEndPoint = new(IPAddress.Any, 0);
 
         var buffer = GC.AllocateArray<byte>(36, pinned: true);

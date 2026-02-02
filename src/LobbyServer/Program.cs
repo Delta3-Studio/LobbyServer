@@ -13,14 +13,16 @@ Console.Title = fullName;
 builder.Configuration.AddEnvironmentVariables();
 builder.Services.AddOptions<AppSettings>().BindConfiguration("");
 builder.Services
-    .ConfigureHttpJsonOptions(options => options.SerializerOptions.AddCustomConverters())
+    .ConfigureHttpJsonOptions(o => o.SerializerOptions.AddCustomConverters())
     .Configure<JsonOptions>(o => o.JsonSerializerOptions.AddCustomConverters())
     .AddEndpointsApiExplorer()
     .AddSwaggerGen(options =>
     {
-        options.MapType<IPAddress>(() => new() { Type = "string" });
-        options.MapType<IPEndPoint>(() => new() { Type = "string" });
-        options.SupportNonNullableReferenceTypes();
+        options
+            .MapStringType<IPAddress>("127.0.0.1")
+            .MapStringType<IPEndPoint>("127.0.0.1:1234")
+            .SupportNonNullableReferenceTypes();
+
         options.SwaggerDoc("v1", new()
         {
             Title = currentName,
@@ -37,17 +39,17 @@ builder.Services
     .AddHostedService<UdpListenerService>();
 
 var app = builder.Build();
-
-app.UseForwardedHeaders();
-app.UseSwagger().UseSwaggerUI(o =>
+app.UseSwagger(o => o.RouteTemplate = "docs/{documentName}/swagger.json");
+app.UseSwaggerUI(o =>
 {
-    o.DisplayRequestDuration();
     o.DocumentTitle = fullName;
     o.RoutePrefix = "docs";
+    o.DisplayRequestDuration();
 });
 
 app.MapHealthChecks("/health").ShortCircuit();
 app.MapGet("/version", () => currentVersion).ShortCircuit();
+app.UseForwardedHeaders();
 
 Api.MapRoutes(app);
 

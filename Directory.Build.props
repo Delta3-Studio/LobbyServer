@@ -11,14 +11,12 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/Delta3-Studio/LobbyServer</RepositoryUrl>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-
     <Company>Delta3 Studio</Company>
     <Authors>Lucas Teles - me@lucasteles.dev</Authors>
     <Copyright>Copyright © 2020 Delta3 Studio</Copyright>
@@ -45,11 +43,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Analysers" Condition="'$(IsCSharp)'=='true'">
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.18.*">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.19.*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

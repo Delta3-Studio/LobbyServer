@@ -1,10 +1,11 @@
+version: '3.8'
 services:
   api:
-    image: lucasteles/spacewar-lobby-server
+    image: lucasteles/lobby-server
     build:
       dockerfile: Dockerfile
     environment:
-      UDPHOST: ''
+      UdpHost: ''
     networks:
         - local-network
     ports:
@@ -14,7 +15,7 @@ services:
       resources:
         limits:
           cpus: '0.25'
-          memory: '0.2GB'
+          memory: 200M
 
 networks:
     local-network:

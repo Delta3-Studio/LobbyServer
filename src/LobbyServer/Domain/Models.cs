@@ -14,7 +14,7 @@ public enum PeerMode : byte
 
 public sealed class Peer(string username, IPAddress requestAddress)
 {
-    public PeerId PeerId { get; init; } = Guid.NewGuid();
+    public PeerId PeerId { get; init; } = PeerId.CreateVersion7();
     public string Username { get; } = username;
     public IPAddress RequestAddress { get; } = requestAddress;
     public IPEndPoint? LocalEndpoint { get; init; }
@@ -27,7 +27,7 @@ public sealed class Peer(string username, IPAddress requestAddress)
 
 public sealed record LobbyEntry(Peer Peer, PeerMode Mode)
 {
-    public PeerToken Token { get; init; } = PeerToken.NewGuid();
+    public PeerToken Token { get; init; } = PeerToken.CreateVersion7();
     public required DateTimeOffset LastRead { get; set; }
 }
 
