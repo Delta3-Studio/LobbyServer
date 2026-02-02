@@ -7,7 +7,7 @@ using [UDP hole punching](https://en.wikipedia.org/wiki/UDP_hole_punching)
 
 ### Running from source
 
-You need to have [.NET 8](https://dotnet.microsoft.com/en-us/download) installed.
+You need to have [.NET 10](https://dotnet.microsoft.com/en-us/download) installed.
 
 Open a terminal on the [server project directory](/src/LobbyServer) and execute:
 
