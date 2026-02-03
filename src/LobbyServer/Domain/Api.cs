@@ -17,11 +17,13 @@ public static class Api
         });
 
         app.MapPost("lobby", Results<Ok<EnterLobbyResponse>, BadRequest, Conflict, UnprocessableEntity> (
-            HttpContext context, LobbyRepository repository, EnterLobbyRequest req
+            HttpContext context, LobbyRepository repository,
+            EnterLobbyRequest req
         ) =>
         {
             if (string.IsNullOrWhiteSpace(req.LobbyName)
                 || req.LobbyName.Length > 40
+                || req.MaxPlayers < 2
                 || context.GetRemoteClientIP() is not { } userIp)
                 return BadRequest();
 
@@ -31,14 +33,18 @@ public static class Api
             return Ok(lobbyResponse);
         });
 
+        app.MapGet("lobby", Ok<IEnumerable<string>> (
+                LobbyRepository repository, [FromHeader] int gameId = 0) =>
+            Ok(repository.Get(gameId)));
+
         app.MapGet("lobby/{name}",
             Results<Ok<Lobby>, NotFound, UnauthorizedHttpResult> (
                 LobbyRepository repository, TimeProvider time,
                 [FromHeader] Guid? token,
-                string name
+                string name, [FromHeader] int gameId = 0
             ) =>
             {
-                if (repository.FindLobby(name) is not { } lobby)
+                if (repository.Find(name, gameId) is not { } lobby)
                     return NotFound();
 
                 if (token is not null)
@@ -56,11 +62,11 @@ public static class Api
 
         app.MapDelete("lobby/{name}",
             Results<NoContent, NotFound, BadRequest, UnprocessableEntity, UnauthorizedHttpResult> (
-                LobbyRepository repository, [FromHeader] Guid token, string name
+                LobbyRepository repository, [FromHeader] Guid token, string name, [FromHeader] int gameId = 0
             ) =>
             {
                 if (string.IsNullOrWhiteSpace(name)) return BadRequest();
-                if (repository.FindEntry(token) is null || repository.FindLobby(name) is not { } lobby)
+                if (repository.FindEntry(token) is null || repository.Find(name, gameId) is not { } lobby)
                     return NotFound();
                 if (lobby.FindEntry(token) is not { } entry) return Unauthorized();
 
@@ -81,13 +87,13 @@ public static class Api
             Results<NoContent, NotFound, BadRequest, UnprocessableEntity, UnauthorizedHttpResult> (
                 LobbyRepository repository,
                 [FromHeader] Guid token,
-                string name
+                string name, [FromHeader] int gameId = 0
             ) =>
             {
                 if (string.IsNullOrWhiteSpace(name))
                     return BadRequest();
 
-                if (repository.FindEntry(token) is null || repository.FindLobby(name) is not { } lobby)
+                if (repository.FindEntry(token) is null || repository.Find(name, gameId) is not { } lobby)
                     return NotFound();
 
                 if (lobby.FindEntry(token) is not { } entry)
@@ -108,11 +114,12 @@ public static class Api
                 LobbyRepository repository,
                 [FromHeader] Guid token,
                 [FromRoute] string name,
-                [FromRoute] PeerMode mode
+                [FromRoute] PeerMode mode,
+                [FromHeader] int gameId = 0
             ) =>
             {
                 if (string.IsNullOrWhiteSpace(name)) return BadRequest();
-                if (repository.FindEntry(token) is null || repository.FindLobby(name) is not { } lobby)
+                if (repository.FindEntry(token) is null || repository.Find(name, gameId) is not { } lobby)
                     return NotFound();
                 if (lobby.FindEntry(token) is not { } entry) return Unauthorized();
                 if (lobby.Ready) return UnprocessableEntity();

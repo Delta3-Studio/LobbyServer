@@ -169,7 +169,8 @@ public sealed record EnterLobbyRequest(
     string Username,
     PeerMode Mode,
     IPEndPoint? LocalEndpoint = null,
-    int? MaxPlayers = null
+    int? MaxPlayers = null,
+    int GameId = 0
 );
 
 [Serializable]

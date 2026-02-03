@@ -10,10 +10,12 @@ public sealed class LobbyRepository(
     IOptions<AppSettings> settings
 )
 {
+    static string MountKey(string name, int gameId) => name.Prefixed($"lobby_{gameId}");
+
     public EnterLobbyResponse? EnterOrCreate(IPAddress remote, EnterLobbyRequest req)
     {
         var lobbyName = req.LobbyName.Normalized();
-        var lobbyKey = MountLobbyKey(lobbyName);
+        var lobbyKey = MountKey(lobbyName, req.GameId);
         var userName = req.Username.Normalized();
         var expiration = settings.Value.LobbyExpiration;
         var peerId = Guid.CreateVersion7();
@@ -63,13 +65,22 @@ public sealed class LobbyRepository(
         }
     }
 
-    public Lobby? FindLobby(string name)
+    public IEnumerable<string> Get(int gameId)
     {
-        var key = MountLobbyKey(name.Normalized());
-        return cache.Get<Lobby>(key);
+        var prefix = MountKey(string.Empty, gameId);
+
+        return (cache as MemoryCache)?.Keys.OfType<string>()
+               .Where(x => x.StartsWith(prefix))
+               .Select(x => x.Split("::").LastOrDefault(string.Empty))
+               .Where(x => !string.IsNullOrWhiteSpace(x))
+               ?? [];
     }
 
-    static string MountLobbyKey(string name) => name.Prefixed("lobby_");
+    public Lobby? Find(string name, int gameId)
+    {
+        var key = MountKey(name.Normalized(), gameId);
+        return cache.Get<Lobby>(key);
+    }
 
     public LobbyEntry? FindEntry(Guid peerToken)
     {

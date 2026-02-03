@@ -48,7 +48,6 @@ app.UseSwaggerUI(o =>
 });
 
 app.MapHealthChecks("/health").ShortCircuit();
-app.MapGet("/version", () => currentVersion).ShortCircuit();
 app.UseForwardedHeaders();
 
 Api.MapRoutes(app);
