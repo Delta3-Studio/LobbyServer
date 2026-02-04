@@ -10,14 +10,17 @@ public static class Routes
     {
         app.MapGet("info", object (HttpContext context, TimeProvider time) => new
         {
-            Date = time.GetLocalNow(),
-            ClientIP = context.GetRemoteClientIP(),
-            RemoteIP = context.Connection.RemoteIpAddress,
-            RemoteIPv4 = context.Connection.RemoteIpAddress?.MapToIPv4(),
+            Time = time.GetLocalNow(),
+            ClientIP = context.GetRemoteClientIP()?.MapToIPv4(),
+            ClientIPv6 = context.GetRemoteClientIP()?.MapToIPv6(),
+            RemoteIP = context.Connection.RemoteIpAddress?.MapToIPv4(),
+            RemoteIPv6 = context.Connection.RemoteIpAddress?.MapToIPv6(),
         });
 
-        app.MapPost("lobby", Results<Ok<EnterLobbyResponse>, BadRequest, UnprocessableEntity> (
-            HttpContext context, LobbyRepository repository, EnterOrCreateLobbyRequest req
+        var api = app.MapGroup("/{game:int}/lobby");
+
+        api.MapPost("/", Results<Ok<EnterLobbyResponse>, BadRequest, UnprocessableEntity> (
+            HttpContext context, LobbyRepository repository, EnterOrCreateLobbyRequest req, int game = 0
         ) =>
         {
             if (string.IsNullOrWhiteSpace(req.LobbyName)
@@ -25,37 +28,47 @@ public static class Routes
                 || context.GetRemoteClientIP() is not { } userIp)
                 return BadRequest();
 
-            if (repository.GetOrCreate(req.LobbyName, req.MaxPlayers, req.GameId) is not { } lobby
+            if (req.RecreationKey is { } recreationKey
+                && repository.Find(req.LobbyName, game) is { } found
+                && found.RecreationKey == recreationKey)
+                repository.Remove(found);
+
+            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers) is not { } lobby
                 || repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } enterResponse)
                 return UnprocessableEntity();
 
             return Ok(enterResponse);
         });
 
-        app.MapPost("lobby/create", Results<Created<Lobby>, BadRequest, Conflict, UnprocessableEntity> (
-            LobbyRepository repository, CreateLobbyRequest req
+        api.MapPost("/create", Results<Created<Lobby>, BadRequest, Conflict, UnprocessableEntity> (
+            LobbyRepository repository, CreateLobbyRequest req, int game = 0
         ) =>
         {
             if (string.IsNullOrWhiteSpace(req.LobbyName) || req.LobbyName.Length > 40 || req.MaxPlayers < 2)
                 return BadRequest();
 
-            if (repository.Find(req.LobbyName, req.GameId) is not null)
-                return Conflict();
+            if (repository.Find(req.LobbyName, game) is { } found)
+            {
+                if (req.RecreationKey is { } recreationKey && found.RecreationKey == recreationKey)
+                    repository.Remove(found);
+                else
+                    return Conflict();
+            }
 
-            if (repository.GetOrCreate(req.LobbyName, req.MaxPlayers, req.GameId) is not { } lobby)
+            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers) is not { } lobby)
                 return UnprocessableEntity();
 
             return Created($"lobby/{lobby.Name}", lobby);
         });
 
-        app.MapPost("lobby/enter", Results<Ok<EnterLobbyResponse>, BadRequest, NotFound, UnprocessableEntity> (
-            HttpContext context, LobbyRepository repository, EnterLobbyRequest req
+        api.MapPost("/enter", Results<Ok<EnterLobbyResponse>, BadRequest, NotFound, UnprocessableEntity> (
+            HttpContext context, LobbyRepository repository, EnterLobbyRequest req, int game = 0
         ) =>
         {
             if (string.IsNullOrWhiteSpace(req.LobbyName) || context.GetRemoteClientIP() is not { } userIp)
                 return BadRequest();
 
-            if (repository.Find(req.LobbyName, req.GameId) is not { } lobby)
+            if (repository.Find(req.LobbyName, game) is not { } lobby)
                 return NotFound();
 
             if (repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } enterResponse)
@@ -64,98 +77,63 @@ public static class Routes
             return Ok(enterResponse);
         });
 
-        app.MapGet("lobby", Ok<IEnumerable<string>> (LobbyRepository repository, [FromHeader] int gameId = 0) =>
-        Ok(repository.Get(gameId)));
+        api.MapGet("/", Ok<IEnumerable<string>> (LobbyRepository repository, int game = 0) =>
+            Ok(repository.Get(game)));
 
-        app.MapGet("lobby/{name}",
-            Results<Ok<Lobby>, NotFound, UnauthorizedHttpResult> (
-                LobbyRepository repository, TimeProvider time,
-                [FromHeader] Guid? token,
-                string name, [FromHeader] int gameId = 0
-            ) =>
-            {
-                if (repository.Find(name, gameId) is not { } lobby)
-                    return NotFound();
+        api.MapGet("/{name}", Results<Ok<Lobby>, NotFound> (
+            LobbyRepository repository, string name, int game = 0
+        ) =>
+        {
+            if (repository.Find(name, game) is not { } lobby) return NotFound();
+            return Ok(lobby);
+        });
 
-                if (token is not null)
-                {
-                    if (repository.FindEntry(token.Value) is null) return NotFound();
-                    if (lobby.FindEntry(token.Value) is null) return Unauthorized();
-                }
+        var entries = app.MapGroup("/entry");
 
-                lobby.Purge(time.GetUtcNow());
-                if (lobby.IsEmpty())
-                    repository.Remove(lobby);
+        entries.MapGet("/", Results<Ok<LobbyEntry>, NotFound> (
+            LobbyRepository repository, [FromHeader] EntryToken token
+        ) =>
+        {
+            if (repository.FindEntry(token) is not { } entry) return NotFound();
+            return Ok(entry);
+        });
 
-                return Ok(lobby);
-            });
+        entries.MapGet("/lobby", Results<Ok<Lobby>, NotFound> (
+            LobbyRepository repository, [FromHeader] EntryToken token
+        ) =>
+        {
+            if (repository.FindEntry(token) is not { } entry) return NotFound();
+            return Ok(entry.Lobby);
+        });
 
-        app.MapDelete("lobby/{name}",
-            Results<NoContent, NotFound, BadRequest, UnprocessableEntity, UnauthorizedHttpResult> (
-                LobbyRepository repository, [FromHeader] Guid token, string name, [FromHeader] int gameId = 0
-            ) =>
-            {
-                if (string.IsNullOrWhiteSpace(name)) return BadRequest();
-                if (repository.FindEntry(token) is null || repository.Find(name, gameId) is not { } lobby)
-                    return NotFound();
-                if (lobby.FindEntry(token) is not { } entry) return Unauthorized();
+        entries.MapDelete("/", Results<NoContent, NotFound> (
+            LobbyRepository repository, [FromHeader] EntryToken token
+        ) =>
+        {
+            if (repository.FindEntry(token) is not { } entry) return NotFound();
+            repository.Remove(entry);
+            return NoContent();
+        });
 
-                if (lobby.Ready) return UnprocessableEntity();
+        entries.MapPut("/ready", Results<NoContent, NotFound> (
+            LobbyRepository repository, [FromHeader] EntryToken token
+        ) =>
+        {
+            if (repository.FindEntry(token) is not { } entry) return NotFound();
+            if (entry.Mode is PeerMode.Player) entry.Peer.ToggleReady();
+            return NoContent();
+        });
 
-                lock (lobby.Locker)
-                {
-                    lobby.RemovePeer(entry);
-
-                    if (lobby.IsEmpty())
-                        repository.Remove(lobby);
-                }
-
-                return NoContent();
-            });
-
-        app.MapPut("lobby/{name}",
-            Results<NoContent, NotFound, BadRequest, UnprocessableEntity, UnauthorizedHttpResult> (
-                LobbyRepository repository,
-                [FromHeader] Guid token,
-                string name, [FromHeader] int gameId = 0
-            ) =>
-            {
-                if (string.IsNullOrWhiteSpace(name))
-                    return BadRequest();
-
-                if (repository.FindEntry(token) is null || repository.Find(name, gameId) is not { } lobby)
-                    return NotFound();
-
-                if (lobby.FindEntry(token) is not { } entry)
-                    return Unauthorized();
-
-                if (lobby.Ready)
-                    return UnprocessableEntity();
-
-                if (entry.Mode is PeerMode.Player)
-                    lock (lobby.Locker)
-                        entry.Peer.ToggleReady();
-
-                return NoContent();
-            });
-
-        app.MapPut("lobby/{name}/mode/{mode}",
-            Results<NoContent, NotFound, BadRequest, UnprocessableEntity, UnauthorizedHttpResult> (
-                LobbyRepository repository,
-                [FromHeader] Guid token,
-                [FromRoute] string name,
-                [FromRoute] PeerMode mode,
-                [FromHeader] int gameId = 0
-            ) =>
-            {
-                if (string.IsNullOrWhiteSpace(name)) return BadRequest();
-                if (repository.FindEntry(token) is null || repository.Find(name, gameId) is not { } lobby)
-                    return NotFound();
-                if (lobby.FindEntry(token) is not { } entry) return Unauthorized();
-                if (lobby.Ready) return UnprocessableEntity();
-
-                lobby.ChangePeerMode(entry, mode);
-                return NoContent();
-            });
+        entries.MapPut("/mode/{mode}", Results<NoContent, NotFound, UnprocessableEntity> (
+            LobbyRepository repository,
+            [FromHeader] EntryToken token,
+            [FromRoute] PeerMode mode
+        ) =>
+        {
+            if (repository.FindEntry(token) is not { } entry) return NotFound();
+            if (entry.Lobby is not { } lobby || lobby.Ready) return UnprocessableEntity();
+            lobby.ChangePeerMode(entry, mode);
+            return NoContent();
+        });
     }
 }

@@ -5,14 +5,13 @@ namespace LobbyServer;
 [Serializable]
 public sealed record CreateLobbyRequest(
     string LobbyName,
-    int GameId,
-    int? MaxPlayers
+    int? MaxPlayers = null,
+    Guid? RecreationKey = null
 );
 
 [Serializable]
 public sealed record EnterLobbyRequest(
     string LobbyName,
-    int GameId,
     string Username,
     PeerMode Mode,
     IPEndPoint? LocalEndpoint
@@ -24,16 +23,16 @@ public sealed record EnterLobbyResponse(
     string LobbyName,
     PeerMode Mode,
     PeerId PeerId,
-    PeerToken Token,
+    Guid Token,
     IPAddress IP
 );
 
 [Serializable]
 public sealed record EnterOrCreateLobbyRequest(
     string LobbyName,
-    int GameId,
     string Username,
     PeerMode Mode,
     IPEndPoint? LocalEndpoint,
-    int? MaxPlayers
+    int? MaxPlayers = null,
+    Guid? RecreationKey = null
 );

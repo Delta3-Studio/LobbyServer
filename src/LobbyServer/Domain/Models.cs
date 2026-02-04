@@ -18,14 +18,14 @@ public sealed class Peer(string username, IPAddress requestAddress)
     public IPEndPoint? Endpoint { get; set; }
     public bool Ready { get; private set; }
     public bool Connected => Endpoint is not null;
-
     public void ToggleReady() => Ready = !Ready;
 }
 
 public sealed record LobbyEntry(Peer Peer, PeerMode Mode)
 {
-    public PeerToken Token { get; init; } = PeerToken.CreateVersion7();
+    public EntryToken Token { get; init; } = EntryToken.CreateVersion7();
     public required DateTimeOffset LastRead { get; set; }
+    internal Lobby? Lobby { get; set; }
 }
 
 public sealed record SpectatorMapping(PeerId Host, IEnumerable<PeerId> Watchers);
@@ -37,8 +37,8 @@ public sealed class Lobby(
     TimeSpan expiration,
     TimeSpan purgeTimeout,
     DateTimeOffset createdAt,
-    PeerId? owner = null,
-    int? maxPlayers = null
+    int? maxPlayers = null,
+    Guid? recreationKey = null
 )
 {
     const int DefaultMaxPlayers = 4;
@@ -48,8 +48,11 @@ public sealed class Lobby(
     [JsonIgnore]
     internal string Key { get; } = key;
 
+    [JsonIgnore]
+    internal Guid? RecreationKey { get; } = recreationKey;
+
     public string Name { get; } = name;
-    public PeerId? Owner { get; private set; } = owner;
+    public PeerId? Owner { get; private set; }
     public DateTimeOffset CreatedAt { get; } = createdAt;
     public DateTimeOffset ExpiresAt => CreatedAt + expiration;
     public int MaxPlayers { get; } = maxPlayers is null or 0 ? DefaultMaxPlayers : maxPlayers.Value;
@@ -107,6 +110,7 @@ public sealed class Lobby(
             if (Players.Count() >= MaxPlayers)
                 entry = entry with { Mode = PeerMode.Spectator };
 
+            entry.Lobby = this;
             entries.Add(entry);
             Owner ??= entry.Peer.PeerId;
             return entry;
@@ -119,6 +123,8 @@ public sealed class Lobby(
         {
             if (Ready) return;
             entries.Remove(entry);
+            entry.Lobby = null;
+            if (Owner == entry.Peer.PeerId) Owner = null;
         }
     }
 
@@ -137,7 +143,7 @@ public sealed class Lobby(
                 p.Peer.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
     }
 
-    public LobbyEntry? FindEntry(PeerToken token)
+    public LobbyEntry? FindEntry(Guid token)
     {
         lock (Locker)
             return entries.Find(p => p.Token == token);

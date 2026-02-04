@@ -10,11 +10,11 @@ public sealed class LobbyRepository(
     IOptions<AppSettings> settings
 )
 {
-    static string MountKey(string name, int gameId) => $"lobby[{gameId}]::{name.Normalize()}";
+    static string MountKey(string name, int gameId) => $"lobby[{gameId}]::{name.NormalizedName()}";
 
-    public Lobby? GetOrCreate(string name, int? maxPlayers = null, int gameId = 0)
+    public Lobby? GetOrCreate(string name, int gameId, int? maxPlayers = null)
     {
-        var lobbyName = name.Normalized();
+        var lobbyName = name.NormalizedName();
         var lobbyKey = MountKey(lobbyName, gameId);
         var expiration = settings.Value.LobbyExpiration;
 
@@ -44,8 +44,7 @@ public sealed class LobbyRepository(
         {
             if (lobby.Ready) return null;
 
-            var peerId = Guid.CreateVersion7();
-            var userName = username.Normalized();
+            var userName = username.NormalizedName();
             var userNameIndex = 2;
 
             var nextUserName = userName;
@@ -59,7 +58,6 @@ public sealed class LobbyRepository(
 
             Peer peer = new(userName, remote)
             {
-                PeerId = peerId,
                 LocalEndpoint = localEndpoint,
             };
 
@@ -82,28 +80,58 @@ public sealed class LobbyRepository(
         var prefix = MountKey(string.Empty, gameId);
 
         return (cache as MemoryCache)?.Keys.OfType<string>()
-               .Where(x => x.StartsWith(prefix))
-               .Select(x => x.Split("::").LastOrDefault(string.Empty))
-               .Where(x => !string.IsNullOrWhiteSpace(x))
+               .Where(key => key.StartsWith(prefix))
+               .Select(cache.Get<Lobby>)
+               .Where(l => l is not null && !l.Ready)
+               .Cast<Lobby>()
+               .Select(l => l.Name)
                ?? [];
     }
 
     public Lobby? Find(string name, int gameId)
     {
-        var key = MountKey(name.Normalized(), gameId);
-        return cache.Get<Lobby>(key);
+        var key = MountKey(name.NormalizedName(), gameId);
+        if (cache.Get<Lobby>(key) is not { } lobby) return null;
+        Purge(lobby);
+        return lobby;
     }
 
-    public LobbyEntry? FindEntry(Guid peerToken)
+
+    public LobbyEntry? FindEntry(EntryToken entryToken)
     {
-        if (!cache.TryGetValue<LobbyEntry>(peerToken, out var entry) || entry is null)
+        if (!cache.TryGetValue<LobbyEntry>(entryToken, out var entry) || entry is null)
             return null;
 
         var now = time.GetUtcNow();
         entry.LastRead = now;
 
+        if (entry.Lobby?.FindEntry(entry.Token) is null)
+        {
+            cache.Remove(entryToken);
+            return null;
+        }
+
+        Purge(entry.Lobby);
         return entry;
     }
 
     public void Remove(Lobby lobby) => cache.Remove(lobby.Key);
+
+    public void Remove(LobbyEntry entry)
+    {
+        if (entry.Lobby is { } lobby)
+            lock (lobby.Locker)
+            {
+                lobby.RemovePeer(entry);
+                Purge(lobby);
+            }
+
+        cache.Remove(entry.Token);
+    }
+
+    public void Purge(Lobby lobby)
+    {
+        lobby.Purge(time.GetUtcNow());
+        if (lobby.IsEmpty()) Remove(lobby);
+    }
 }
