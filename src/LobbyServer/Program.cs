@@ -50,7 +50,7 @@ app.UseSwaggerUI(o =>
 app.MapHealthChecks("/health").ShortCircuit();
 app.UseForwardedHeaders();
 
-Api.MapRoutes(app);
+Routes.MapRoutes(app);
 
 if (app.Environment.IsDevelopment())
     _ = Task.Run(async () =>

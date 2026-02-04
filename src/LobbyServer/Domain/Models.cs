@@ -3,9 +3,6 @@ using System.Text.Json.Serialization;
 
 namespace LobbyServer;
 
-using PeerId = Guid;
-using PeerToken = Guid;
-
 public enum PeerMode : byte
 {
     Player,
@@ -37,10 +34,10 @@ public sealed record SpectatorMapping(PeerId Host, IEnumerable<PeerId> Watchers)
 public sealed class Lobby(
     string key,
     string name,
-    PeerId owner,
     TimeSpan expiration,
     TimeSpan purgeTimeout,
     DateTimeOffset createdAt,
+    PeerId? owner = null,
     int? maxPlayers = null
 )
 {
@@ -52,9 +49,8 @@ public sealed class Lobby(
     internal string Key { get; } = key;
 
     public string Name { get; } = name;
-    public PeerId Owner { get; private set; } = owner;
+    public PeerId? Owner { get; private set; } = owner;
     public DateTimeOffset CreatedAt { get; } = createdAt;
-
     public DateTimeOffset ExpiresAt => CreatedAt + expiration;
     public int MaxPlayers { get; } = maxPlayers is null or 0 ? DefaultMaxPlayers : maxPlayers.Value;
 
@@ -112,6 +108,7 @@ public sealed class Lobby(
                 entry = entry with { Mode = PeerMode.Spectator };
 
             entries.Add(entry);
+            Owner ??= entry.Peer.PeerId;
             return entry;
         }
     }
@@ -162,23 +159,3 @@ public sealed class Lobby(
         }
     }
 }
-
-[Serializable]
-public sealed record EnterLobbyRequest(
-    string LobbyName,
-    string Username,
-    PeerMode Mode,
-    IPEndPoint? LocalEndpoint = null,
-    int? MaxPlayers = null,
-    int GameId = 0
-);
-
-[Serializable]
-public sealed record EnterLobbyResponse(
-    string Username,
-    string LobbyName,
-    PeerMode Mode,
-    PeerId PeerId,
-    PeerToken Token,
-    IPAddress IP
-);

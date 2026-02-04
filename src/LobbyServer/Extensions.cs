@@ -1,3 +1,5 @@
+global using PeerId = System.Guid;
+global using PeerToken = System.Guid;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -42,11 +44,8 @@ public static partial class Extensions
             options.Converters.Add(converter);
     }
 
-    extension(string name)
-    {
-        public string Normalized() => MyRegex().Replace(name.Trim().ToLower(), "_");
-        public string Prefixed(string prefix) => $"{prefix}::{name}";
-    }
+    public static string Normalized(this string name) => MyRegex().Replace(name.Trim().ToLower(), "_");
+
 
     [GeneratedRegex("[^a-zA-Z0-9]")]
     private static partial Regex MyRegex();

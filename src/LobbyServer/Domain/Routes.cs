@@ -4,7 +4,7 @@ using static Microsoft.AspNetCore.Http.TypedResults;
 
 namespace LobbyServer;
 
-public static class Api
+public static class Routes
 {
     public static void MapRoutes(WebApplication app)
     {
@@ -16,26 +16,56 @@ public static class Api
             RemoteIPv4 = context.Connection.RemoteIpAddress?.MapToIPv4(),
         });
 
-        app.MapPost("lobby", Results<Ok<EnterLobbyResponse>, BadRequest, Conflict, UnprocessableEntity> (
-            HttpContext context, LobbyRepository repository,
-            EnterLobbyRequest req
+        app.MapPost("lobby", Results<Ok<EnterLobbyResponse>, BadRequest, UnprocessableEntity> (
+            HttpContext context, LobbyRepository repository, EnterOrCreateLobbyRequest req
         ) =>
         {
             if (string.IsNullOrWhiteSpace(req.LobbyName)
-                || req.LobbyName.Length > 40
-                || req.MaxPlayers < 2
+                || req.LobbyName.Length > 40 || req.MaxPlayers < 2
                 || context.GetRemoteClientIP() is not { } userIp)
                 return BadRequest();
 
-            if (repository.EnterOrCreate(userIp, req) is not { } lobbyResponse)
+            if (repository.GetOrCreate(req.LobbyName, req.MaxPlayers, req.GameId) is not { } lobby
+                || repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } enterResponse)
                 return UnprocessableEntity();
 
-            return Ok(lobbyResponse);
+            return Ok(enterResponse);
         });
 
-        app.MapGet("lobby", Ok<IEnumerable<string>> (
-                LobbyRepository repository, [FromHeader] int gameId = 0) =>
-            Ok(repository.Get(gameId)));
+        app.MapPost("lobby/create", Results<Created<Lobby>, BadRequest, Conflict, UnprocessableEntity> (
+            LobbyRepository repository, CreateLobbyRequest req
+        ) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.LobbyName) || req.LobbyName.Length > 40 || req.MaxPlayers < 2)
+                return BadRequest();
+
+            if (repository.Find(req.LobbyName, req.GameId) is not null)
+                return Conflict();
+
+            if (repository.GetOrCreate(req.LobbyName, req.MaxPlayers, req.GameId) is not { } lobby)
+                return UnprocessableEntity();
+
+            return Created($"lobby/{lobby.Name}", lobby);
+        });
+
+        app.MapPost("lobby/enter", Results<Ok<EnterLobbyResponse>, BadRequest, NotFound, UnprocessableEntity> (
+            HttpContext context, LobbyRepository repository, EnterLobbyRequest req
+        ) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.LobbyName) || context.GetRemoteClientIP() is not { } userIp)
+                return BadRequest();
+
+            if (repository.Find(req.LobbyName, req.GameId) is not { } lobby)
+                return NotFound();
+
+            if (repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } enterResponse)
+                return UnprocessableEntity();
+
+            return Ok(enterResponse);
+        });
+
+        app.MapGet("lobby", Ok<IEnumerable<string>> (LobbyRepository repository, [FromHeader] int gameId = 0) =>
+        Ok(repository.Get(gameId)));
 
         app.MapGet("lobby/{name}",
             Results<Ok<Lobby>, NotFound, UnauthorizedHttpResult> (
