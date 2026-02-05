@@ -1,8 +1,11 @@
 using System.Net;
 using System.Reflection;
 using LobbyServer;
+using LobbyServer.Diplomat;
+using LobbyServer.Domain;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using UdpListenerService = LobbyServer.Domain.UdpListenerService;
 
 var builder = WebApplication.CreateBuilder(args);
 var currentVersion = (Assembly.GetEntryAssembly()?.GetName().Version ?? new Version()).ToString(3);

@@ -2,7 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
-namespace LobbyServer;
+namespace LobbyServer.Domain;
 
 public sealed class LobbyRepository(
     IMemoryCache cache,
@@ -32,7 +32,7 @@ public sealed class LobbyRepository(
         });
     }
 
-    public EnterLobbyResponse? Enter(
+    public LobbyEntry? Enter(
         Lobby lobby,
         IPAddress remote,
         string username,
@@ -42,13 +42,13 @@ public sealed class LobbyRepository(
     {
         lock (lobby.Locker)
         {
-            if (lobby.Ready) return null;
+            if (lobby.IsReady()) return null;
 
             var userName = username.NormalizedName();
             var userNameIndex = 2;
 
             var nextUserName = userName;
-            while (lobby.FindEntry(nextUserName) is not null)
+            while (lobby.FindPeer(nextUserName) is not null)
                 nextUserName = $"{userName}{userNameIndex++}";
 
             userName = nextUserName;
@@ -70,21 +70,20 @@ public sealed class LobbyRepository(
             playerEntry.Value = entry;
 
             playerEntry.SetSlidingExpiration(entryExpiration);
-            entry = lobby.AddPeer(entry);
-            return new(userName, lobby.Name, entry.Mode, entry.Peer.PeerId, entry.Token, remote);
+            lobby.AddPeer(entry);
+            return entry;
         }
     }
 
-    public IEnumerable<string> Get(int gameId)
+    public IEnumerable<Lobby> Get(int gameId)
     {
         var prefix = MountKey(string.Empty, gameId);
 
         return (cache as MemoryCache)?.Keys.OfType<string>()
                .Where(key => key.StartsWith(prefix))
                .Select(cache.Get<Lobby>)
-               .Where(l => l is not null && !l.Ready)
+               .Where(l => l is not null && !l.IsReady())
                .Cast<Lobby>()
-               .Select(l => l.Name)
                ?? [];
     }
 
@@ -95,7 +94,6 @@ public sealed class LobbyRepository(
         Purge(lobby);
         return lobby;
     }
-
 
     public LobbyEntry? FindEntry(EntryToken entryToken)
     {
@@ -143,9 +141,25 @@ public sealed class LobbyRepository(
         cache.Remove(entry.Token);
     }
 
+    public bool ChangeMode(LobbyEntry entry, PeerMode mode)
+    {
+        if (entry.Mode == mode) return true;
+        if (entry.Lobby is not { } lobby) return false;
+        lock (lobby.Locker)
+        {
+            if (lobby.IsReady() || lobby.IsFull()) return false;
+            entry.SetMode(mode);
+            Purge(lobby);
+            return true;
+        }
+    }
+
     public void Purge(Lobby lobby)
     {
-        lobby.Purge(time.GetUtcNow());
-        if (lobby.IsEmpty()) Remove(lobby);
+        lock (lobby.Locker)
+        {
+            lobby.Purge(time.GetUtcNow());
+            if (lobby.IsEmpty()) Remove(lobby);
+        }
     }
 }
