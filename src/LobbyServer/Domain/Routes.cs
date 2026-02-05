@@ -132,7 +132,7 @@ public static class Routes
         {
             if (repository.FindEntry(token) is not { } entry) return NotFound();
             if (entry.Lobby is not { } lobby || lobby.Ready) return UnprocessableEntity();
-            lobby.ChangePeerMode(entry, mode);
+            lobby.ChangeMode(entry, mode);
             return NoContent();
         });
     }

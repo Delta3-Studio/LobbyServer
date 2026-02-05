@@ -115,15 +115,29 @@ public sealed class LobbyRepository(
         return entry;
     }
 
-    public void Remove(Lobby lobby) => cache.Remove(lobby.Key);
+    public void Remove(Lobby lobby)
+    {
+        lock (lobby.Locker)
+        {
+            lobby.Clear();
+            cache.Remove(lobby.Key);
+        }
+    }
 
     public void Remove(LobbyEntry entry)
     {
         if (entry.Lobby is { } lobby)
             lock (lobby.Locker)
             {
-                lobby.RemovePeer(entry);
-                Purge(lobby);
+                if (entry.Owns(lobby))
+                {
+                    Remove(lobby);
+                }
+                else
+                {
+                    lobby.RemovePeer(entry);
+                    Purge(lobby);
+                }
             }
 
         cache.Remove(entry.Token);

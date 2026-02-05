@@ -26,9 +26,13 @@ public sealed record LobbyEntry(Peer Peer, PeerMode Mode)
     public EntryToken Token { get; init; } = EntryToken.CreateVersion7();
     public required DateTimeOffset LastRead { get; set; }
     internal Lobby? Lobby { get; set; }
+    public bool Owns(Lobby lobby) => Peer.PeerId != PeerId.Empty && lobby.Owner == Peer.PeerId;
 }
 
-public sealed record SpectatorMapping(PeerId Host, IEnumerable<PeerId> Watchers);
+public sealed record SpectatorMapping(PeerId Host, IList<PeerId> Watchers)
+{
+    public SpectatorMapping(PeerId host) : this(host, []) { }
+}
 
 [Serializable]
 public sealed class Lobby(
@@ -43,7 +47,7 @@ public sealed class Lobby(
 {
     const int DefaultMaxPlayers = 4;
     readonly List<LobbyEntry> entries = [];
-    public readonly object Locker = new();
+    public readonly Lock Locker = new();
 
     [JsonIgnore]
     internal string Key { get; } = key;
@@ -66,7 +70,8 @@ public sealed class Lobby(
         get
         {
             lock (Locker)
-                return entries.Where(x => x.Mode is PeerMode.Player).Take(MaxPlayers)
+                return entries.Where(x => x.Mode is PeerMode.Player)
+                    .Take(MaxPlayers)
                     .Select(x => x.Peer);
         }
     }
@@ -85,20 +90,16 @@ public sealed class Lobby(
         get
         {
             if (!Ready) return [];
-            var players = Players.Select(x => x.PeerId).ToList();
-            var watchers = Enumerable.Range(0, players.Count)
-                .Select(_ => new List<PeerId>()).ToArray();
+            var players = Players.Select(x => new SpectatorMapping(x.PeerId)).ToArray();
 
             var playerIndex = 0;
-
             foreach (var spectator in Spectators)
             {
-                var player = watchers[playerIndex++ % players.Count];
-                player.Add(spectator.PeerId);
+                var player = players[playerIndex++ % players.Length];
+                player.Watchers.Add(spectator.PeerId);
             }
 
-            return players.Zip(watchers, (player, spectators) =>
-                new SpectatorMapping(player, spectators));
+            return players;
         }
     }
 
@@ -124,11 +125,13 @@ public sealed class Lobby(
             if (Ready) return;
             entries.Remove(entry);
             entry.Lobby = null;
-            if (Owner == entry.Peer.PeerId) Owner = null;
+
+            if (Owner == entry.Peer.PeerId)
+                Owner = null;
         }
     }
 
-    public void ChangePeerMode(LobbyEntry entry, PeerMode mode)
+    public void ChangeMode(LobbyEntry entry, PeerMode mode)
     {
         if (Ready || entry.Mode == mode) return;
         RemovePeer(entry);
@@ -152,16 +155,18 @@ public sealed class Lobby(
     public bool IsEmpty()
     {
         lock (Locker)
-            return entries.Count is 0;
+            return entries is [];
     }
 
     public void Purge(DateTimeOffset now)
     {
         lock (Locker)
-        {
             entries.RemoveAll(entry => now - entry.LastRead >= purgeTimeout);
-            if (entries.Count > 0 && entries.TrueForAll(x => x.Peer.PeerId != Owner))
-                Owner = entries.OrderByDescending(x => x.LastRead).First().Peer.PeerId;
-        }
+    }
+
+    public void Clear()
+    {
+        lock (Locker)
+            entries.Clear();
     }
 }
