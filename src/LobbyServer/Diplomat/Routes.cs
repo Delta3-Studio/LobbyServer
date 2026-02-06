@@ -20,10 +20,10 @@ public static class Routes
     {
         var api = app.MapGroup("/{game:int}/lobby");
 
-        api.MapPost("/", Results<Ok<EnterLobbyResponse>, BadRequest, UnprocessableEntity> (
+        api.MapPost("/", Results<Ok<EnterLobbyResponse>, BadRequest, Conflict, UnprocessableEntity> (
             HttpContext context,
             LobbyRepository repository,
-            EnterOrCreateLobbyRequest req,
+            CreateLobbyRequest req,
             int game = 0
         ) =>
         {
@@ -32,29 +32,7 @@ public static class Routes
                 || context.GetRemoteClientIP() is not { } userIp)
                 return BadRequest();
 
-            if (req.RecreationKey is { } recreationKey
-                && repository.Find(req.LobbyName, game) is { } found
-                && found.RecreationKey == recreationKey)
-                repository.Remove(found);
-
-            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers) is not { } lobby
-                || repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } entry)
-                return UnprocessableEntity();
-
-            var response = Mapper.MapEnterResponse(entry);
-            return Ok(response);
-        });
-
-        api.MapPost("/create", Results<Created<LobbyResponse>, BadRequest, Conflict, UnprocessableEntity> (
-            LobbyRepository repository,
-            CreateLobbyRequest req,
-            int game = 0
-        ) =>
-        {
-            if (string.IsNullOrWhiteSpace(req.LobbyName) || req.LobbyName.Length > 40 || req.MaxPlayers < 2)
-                return BadRequest();
-
-            if (repository.Find(req.LobbyName, game) is { } found)
+            if (req.ForceCreation && repository.Find(req.LobbyName, game) is { } found)
             {
                 if (req.RecreationKey is { } recreationKey && found.RecreationKey == recreationKey)
                     repository.Remove(found);
@@ -62,11 +40,12 @@ public static class Routes
                     return Conflict();
             }
 
-            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers) is not { } lobby)
+            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers) is not { } lobby
+                || repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } entry)
                 return UnprocessableEntity();
 
-            var response = Mapper.Map(lobby);
-            return Created($"lobby/{response.Name}", response);
+            var response = Mapper.MapEnterResponse(entry);
+            return Ok(response);
         });
 
         api.MapPost("/enter", Results<Ok<EnterLobbyResponse>, BadRequest, NotFound, UnprocessableEntity> (

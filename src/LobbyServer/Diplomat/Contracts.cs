@@ -4,13 +4,6 @@ using LobbyServer.Domain;
 namespace LobbyServer.Diplomat;
 
 [Serializable]
-public sealed record CreateLobbyRequest(
-    string LobbyName,
-    int? MaxPlayers = null,
-    Guid? RecreationKey = null
-);
-
-[Serializable]
 public sealed record EnterLobbyRequest(
     string LobbyName,
     string Username,
@@ -19,11 +12,12 @@ public sealed record EnterLobbyRequest(
 );
 
 [Serializable]
-public sealed record EnterOrCreateLobbyRequest(
+public sealed record CreateLobbyRequest(
     string LobbyName,
     string Username,
     PeerMode Mode,
     IPEndPoint? LocalEndpoint,
+    bool ForceCreation = false,
     int? MaxPlayers = null,
     Guid? RecreationKey = null
 );
@@ -34,7 +28,7 @@ public sealed record EnterLobbyResponse(
     string LobbyName,
     PeerMode Mode,
     PeerId PeerId,
-    Guid Token,
+    EntryToken Token,
     IPAddress IP
 );
 
