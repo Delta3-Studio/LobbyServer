@@ -53,7 +53,7 @@ public sealed class LobbyRepository(
 
             userName = nextUserName;
 
-            var entryExpiration = lobby.ExpiresAt - time.GetUtcNow();
+            var entryExpiration = lobby.ExpirationTime;
             if (entryExpiration < TimeSpan.Zero) return null;
 
             Peer peer = new(userName, remote)
@@ -68,7 +68,6 @@ public sealed class LobbyRepository(
 
             using var playerEntry = cache.CreateEntry(entry.Token);
             playerEntry.Value = entry;
-
             playerEntry.SetSlidingExpiration(entryExpiration);
             lobby.AddPeer(entry);
             return entry;
@@ -104,13 +103,13 @@ public sealed class LobbyRepository(
         var now = time.GetUtcNow();
         entry.LastRead = now;
 
-        if (entry.Lobby?.FindEntry(entry.Token) is null)
+        if (entry.Lobby?.FindEntry(entry.Token) is null || cache.Get<Lobby>(entry.Lobby.Key) is not { } lobby)
         {
             cache.Remove(entryToken);
             return null;
         }
 
-        Purge(entry.Lobby);
+        Purge(lobby);
         return entry;
     }
 

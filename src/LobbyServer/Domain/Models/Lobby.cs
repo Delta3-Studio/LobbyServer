@@ -22,7 +22,9 @@ public sealed class Lobby(
     public string Name { get; } = name;
     public PeerId? Owner { get; private set; }
     public DateTimeOffset CreatedAt { get; } = createdAt;
-    public DateTimeOffset ExpiresAt => CreatedAt + expiration;
+    public TimeSpan ExpirationTime { get; } = expiration;
+    public DateTimeOffset ExpiresAt => CreatedAt + ExpirationTime;
+
     public int MaxPlayers { get; } = Math.Max(maxPlayers ?? DefaultMaxPlayers, DefaultMinPlayers);
     public IEnumerable<LobbyEntry> GetPlayers() => entries.Where(x => x.Mode is PeerMode.Player);
     public IEnumerable<LobbyEntry> GetSpectators() => entries.Where(x => x.Mode is PeerMode.Spectator);
