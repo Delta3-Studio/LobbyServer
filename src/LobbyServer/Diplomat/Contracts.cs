@@ -36,7 +36,9 @@ public sealed record EnterLobbyResponse(
 public sealed record LobbyInfo(
     string Name,
     string? OwnerName,
-    PeerId? OwnerId
+    PeerId? OwnerId,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset ExpiresAt
 );
 
 [Serializable]

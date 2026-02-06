@@ -47,7 +47,7 @@ public static class Mapper
         lock (lobby.Locker)
         {
             var owner = lobby.FindOwner();
-            return new(lobby.Name, owner?.Peer.Username, owner?.Peer.Id);
+            return new(lobby.Name, owner?.Peer.Username, owner?.Peer.Id, lobby.CreatedAt, lobby.ExpiresAt);
         }
     }
 }

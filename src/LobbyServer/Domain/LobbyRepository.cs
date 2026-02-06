@@ -83,6 +83,7 @@ public sealed class LobbyRepository(
                .Where(key => key.StartsWith(prefix))
                .Select(cache.Get<Lobby>)
                .Where(l => l is not null && !l.IsReady())
+               .OrderByDescending(l => l?.CreatedAt)
                .Cast<Lobby>()
                ?? [];
     }
