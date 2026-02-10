@@ -1,11 +1,12 @@
 using System.Net;
 using System.Reflection;
+using System.Threading.RateLimiting;
 using LobbyServer;
 using LobbyServer.Diplomat;
 using LobbyServer.Domain;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
-using UdpListenerService = LobbyServer.Domain.UdpListenerService;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var currentVersion = (Assembly.GetEntryAssembly()?.GetName().Version ?? new Version()).ToString(3);
@@ -34,6 +35,7 @@ builder.Services
         });
     })
     .AddMemoryCache()
+    .AddRateLimiter(ConfigureRateLimit)
     .AddHealthChecks();
 
 builder.Services
@@ -42,6 +44,11 @@ builder.Services
     .AddHostedService<UdpListenerService>();
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
+if (app.Environment.IsProduction())
+    app.UseHttpsRedirection();
+
 app.UseSwagger(o => o.RouteTemplate = "docs/{documentName}/swagger.json");
 app.UseSwaggerUI(o =>
 {
@@ -50,9 +57,11 @@ app.UseSwaggerUI(o =>
     o.DisplayRequestDuration();
 });
 
-app.MapHealthChecks("/health").ShortCircuit();
-app.UseForwardedHeaders();
+app
+    .UseRouting()
+    .UseRateLimiter();
 
+app.MapHealthChecks("/health").ShortCircuit();
 Routes.MapRoutes(app);
 
 if (app.Environment.IsDevelopment())
@@ -67,3 +76,36 @@ if (app.Environment.IsDevelopment())
     });
 
 await app.RunAsync();
+
+return;
+
+void ConfigureRateLimit(RateLimiterOptions options)
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsync("Too Many Requests", cancellationToken);
+    };
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, IPAddress>(context =>
+    {
+        if (
+            context.Connection.RemoteIpAddress is { } remoteIpAddress
+            && !IPAddress.IsLoopback(remoteIpAddress)
+        )
+            return RateLimitPartition.GetTokenBucketLimiter(
+                remoteIpAddress,
+                _ => new()
+                {
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    TokenLimit = 4,
+                    TokensPerPeriod = 2,
+                    AutoReplenishment = true,
+                    ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                });
+
+        return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
+    });
+}
