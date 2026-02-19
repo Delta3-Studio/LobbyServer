@@ -40,7 +40,7 @@ public static class Routes
                     return Conflict();
             }
 
-            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers) is not { } lobby
+            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers, req.RecreationKey) is not { } lobby
                 || repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } entry)
                 return UnprocessableEntity();
 
