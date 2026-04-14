@@ -100,10 +100,10 @@ void ConfigureRateLimit(RateLimiterOptions options)
                 _ => new()
                 {
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    TokenLimit = 4,
-                    TokensPerPeriod = 2,
+                    TokenLimit = 20,
+                    TokensPerPeriod = 8,
                     AutoReplenishment = true,
-                    ReplenishmentPeriod = TimeSpan.FromSeconds(1),
+                    ReplenishmentPeriod = TimeSpan.FromMilliseconds(500),
                 });
 
         return RateLimitPartition.GetNoLimiter(IPAddress.Loopback);
