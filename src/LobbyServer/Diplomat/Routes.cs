@@ -41,7 +41,8 @@ public static class Routes
             }
 
             if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers, req.RecreationKey) is not { } lobby
-                || repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } entry)
+                || repository.Enter(lobby, userIp, req.Username, req.Mode, req.NetType, req.LocalEndpoint) is not
+                    { } entry)
                 return UnprocessableEntity();
 
             var response = Mapper.MapEnterResponse(entry);
@@ -61,7 +62,8 @@ public static class Routes
             if (repository.Find(req.LobbyName, game) is not { } lobby)
                 return NotFound();
 
-            if (repository.Enter(lobby, userIp, req.Username, req.Mode, req.LocalEndpoint) is not { } entry)
+            if (repository.Enter(lobby, userIp, req.Username, req.Mode, req.NetType, req.LocalEndpoint)
+                is not { } entry)
                 return UnprocessableEntity();
 
             var response = Mapper.MapEnterResponse(entry);

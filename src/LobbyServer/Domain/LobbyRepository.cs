@@ -38,6 +38,7 @@ public sealed class LobbyRepository(
         IPAddress remote,
         string username,
         PeerMode mode,
+        PeerNetType? netType,
         IPEndPoint? localEndpoint = null
     )
     {
@@ -57,7 +58,7 @@ public sealed class LobbyRepository(
             var entryExpiration = lobby.ExpirationTime;
             if (entryExpiration < TimeSpan.Zero) return null;
 
-            Peer peer = new(userName, remote)
+            Peer peer = new(userName, remote, netType ?? PeerNetType.Unknown)
             {
                 LocalEndpoint = localEndpoint,
             };
