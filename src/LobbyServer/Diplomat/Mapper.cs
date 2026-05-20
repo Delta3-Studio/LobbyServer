@@ -6,6 +6,7 @@ public static class Mapper
 {
     public static EnterLobbyResponse MapEnterResponse(LobbyEntry entry) =>
         new(
+            entry.Lobby?.Id ?? Guid.Empty,
             entry.Peer.Username,
             entry.Lobby?.Name ?? string.Empty,
             entry.Mode,
@@ -33,6 +34,7 @@ public static class Mapper
     {
         lock (lobby.Locker)
             return new(
+                LobbyId: lobby.Id,
                 Name: lobby.Name,
                 CreatedAt: lobby.CreatedAt,
                 ExpiresAt: lobby.ExpiresAt,

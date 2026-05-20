@@ -17,6 +17,7 @@ public sealed class Lobby(
     readonly List<LobbyEntry> entries = [];
     internal readonly Lock Locker = new();
 
+    public Guid Id { get; } = Guid.NewGuid();
     public string Key { get; } = key;
     public Guid? RecreationKey { get; } = recreationKey;
     public string Name { get; } = name;

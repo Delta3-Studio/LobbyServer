@@ -26,6 +26,7 @@ public sealed record CreateLobbyRequest(
 
 [Serializable]
 public sealed record EnterLobbyResponse(
+    Guid LobbyId,
     string Username,
     string LobbyName,
     PeerMode Mode,
@@ -59,6 +60,7 @@ public sealed record PeerResponse(
 
 [Serializable]
 public sealed record LobbyResponse(
+    Guid LobbyId,
     string Name,
     DateTimeOffset CreatedAt,
     DateTimeOffset ExpiresAt,
