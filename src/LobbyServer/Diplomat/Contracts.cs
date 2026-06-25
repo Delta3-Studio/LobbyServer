@@ -9,7 +9,8 @@ public sealed record EnterLobbyRequest(
     string Username,
     PeerMode Mode,
     IPEndPoint? LocalEndpoint,
-    PeerNetType? NetType = null
+    PeerNetType? NetType = null,
+    string? Version = null
 );
 
 [Serializable]
@@ -21,7 +22,8 @@ public sealed record CreateLobbyRequest(
     bool ForceCreation = false,
     int? MaxPlayers = null,
     Guid? RecreationKey = null,
-    PeerNetType? NetType = null
+    PeerNetType? NetType = null,
+    string? Version = null
 );
 
 [Serializable]
@@ -31,6 +33,7 @@ public sealed record EnterLobbyResponse(
     string LobbyName,
     PeerMode Mode,
     PeerNetType NetType,
+    string? Version,
     PeerId PeerId,
     EntryToken Token,
     IPAddress IP
@@ -51,6 +54,7 @@ public sealed record PeerResponse(
     string Username,
     PeerMode Mode,
     PeerNetType NetType,
+    string? Version,
     IPAddress RequestAddress,
     IPEndPoint? LocalEndpoint,
     IPEndPoint? Endpoint,

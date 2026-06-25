@@ -43,7 +43,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Analysers" Condition="'$(IsCSharp)'=='true'">
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.25.*">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.27.*">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

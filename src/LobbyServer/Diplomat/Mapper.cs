@@ -11,6 +11,7 @@ public static class Mapper
             entry.Lobby?.Name ?? string.Empty,
             entry.Mode,
             entry.Peer.NetType,
+            entry.Peer.Version,
             entry.Peer.Id,
             entry.Token,
             entry.Peer.RequestAddress
@@ -21,6 +22,7 @@ public static class Mapper
         Username: entry.Peer.Username,
         Mode: entry.Mode,
         NetType: entry.Peer.NetType,
+        entry.Peer.Version,
         RequestAddress: entry.Peer.RequestAddress,
         LocalEndpoint: entry.Peer.LocalEndpoint,
         Endpoint: entry.Peer.Endpoint,

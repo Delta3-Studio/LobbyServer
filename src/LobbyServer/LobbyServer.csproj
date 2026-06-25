@@ -8,7 +8,7 @@
 
     <ItemGroup>
       <PackageReference Include="Backdash.Utils" Version="0.6.22-preview" />
-      <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+      <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     </ItemGroup>
 
     <ItemGroup>

@@ -39,6 +39,7 @@ public sealed class LobbyRepository(
         string username,
         PeerMode mode,
         PeerNetType? netType,
+        string? version,
         IPEndPoint? localEndpoint = null
     )
     {
@@ -61,6 +62,7 @@ public sealed class LobbyRepository(
             Peer peer = new(userName, remote, netType ?? PeerNetType.Unknown)
             {
                 LocalEndpoint = localEndpoint,
+                Version = version,
             };
 
             LobbyEntry entry = new(peer, mode)
