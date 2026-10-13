@@ -3,7 +3,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
 
-namespace LobbyServer.Domain;
+namespace LobbyServer.Domain.Services;
 
 public partial class UdpListenerService(
     LobbyRepository repository,

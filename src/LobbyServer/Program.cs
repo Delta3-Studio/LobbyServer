@@ -4,9 +4,11 @@ using System.Threading.RateLimiting;
 using LobbyServer;
 using LobbyServer.Diplomat;
 using LobbyServer.Domain;
+using LobbyServer.Domain.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using UdpListenerService = LobbyServer.Domain.Services.UdpListenerService;
 
 var builder = WebApplication.CreateBuilder(args);
 var currentVersion = (Assembly.GetEntryAssembly()?.GetName().Version ?? new Version()).ToString(3);
@@ -35,12 +37,14 @@ builder.Services
         });
     })
     .AddMemoryCache()
+    .AddHttpContextAccessor()
     .AddRateLimiter(ConfigureRateLimit)
     .AddHealthChecks();
 
 builder.Services
     .AddSingleton(TimeProvider.System)
     .AddSingleton<LobbyRepository>()
+    .AddScoped<EndpointProvider>()
     .AddHostedService<UdpListenerService>();
 
 var app = builder.Build();

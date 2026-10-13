@@ -1,4 +1,5 @@
 using LobbyServer.Domain;
+using LobbyServer.Domain.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using static Microsoft.AspNetCore.Http.TypedResults;
@@ -9,8 +10,8 @@ public static class Routes
 {
     public static void MapRoutes(WebApplication app)
     {
-        app.MapGet("info", (HttpContext context) =>
-            new RemoteInfo(context.GetRemoteClientIP(), context.Connection.RemoteIpAddress));
+        app.MapGet("info", (EndpointProvider endpoint, HttpContext context) =>
+            new RemoteInfo(endpoint.GetClientIP(), context.Connection.RemoteIpAddress));
 
         MapLobby(app);
         MapEntry(app);
@@ -26,13 +27,13 @@ public static class Routes
                 ValidationProblem, BadRequest<string>,
                 Conflict, UnprocessableEntity
             > (
-                HttpContext context,
+                EndpointProvider endpoint,
                 LobbyRepository repository,
                 CreateLobbyRequest req,
                 int game = 0
             ) =>
             {
-                if (context.GetRemoteClientIP() is not { } userIp)
+                if (endpoint.GetClientIP() is not { } userIp)
                     return BadRequest("Unable to determine the client IP address.");
 
                 ProblemBuilder builder = new();
@@ -70,13 +71,13 @@ public static class Routes
             BadRequest<string>,
             NotFound, UnprocessableEntity
         > (
-            HttpContext context,
+            EndpointProvider endpoint,
             LobbyRepository repository,
             EnterLobbyRequest req,
             int game = 0
         ) =>
         {
-            if (context.GetRemoteClientIP() is not { } userIp)
+            if (endpoint.GetClientIP() is not { } userIp)
                 return BadRequest("Unable to determine the client IP address.");
 
             if (req.LobbyName.IsBlank()) return BadRequest("Lobby name is required.");
