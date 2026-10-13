@@ -20,44 +20,66 @@ public static class Routes
     {
         var api = app.MapGroup("/{game:int}/lobby");
 
-        api.MapPost("/", Results<Ok<EnterLobbyResponse>, BadRequest, Conflict, UnprocessableEntity> (
-            HttpContext context,
-            LobbyRepository repository,
-            CreateLobbyRequest req,
-            int game = 0
-        ) =>
-        {
-            if (string.IsNullOrWhiteSpace(req.LobbyName)
-                || req.LobbyName.Length > 40 || req.MaxPlayers < 2
-                || context.GetRemoteClientIP() is not { } userIp)
-                return BadRequest();
-
-            if (req.ForceCreation && repository.Find(req.LobbyName, game) is { } found)
+        api.MapPost("/",
+            Results<
+                Ok<EnterLobbyResponse>,
+                ValidationProblem, BadRequest<string>,
+                Conflict, UnprocessableEntity
+            > (
+                HttpContext context,
+                LobbyRepository repository,
+                CreateLobbyRequest req,
+                int game = 0
+            ) =>
             {
-                if (req.RecreationKey is { } recreationKey && found.RecreationKey == recreationKey)
-                    repository.Remove(found);
-                else
-                    return Conflict();
-            }
+                if (context.GetRemoteClientIP() is not { } userIp)
+                    return BadRequest("Unable to determine the client IP address.");
 
-            if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers, req.RecreationKey) is not { } lobby ||
-                repository.Enter(lobby, userIp, req.Username, req.Mode, req.NetType, req.Version, req.LocalEndpoint)
-                    is not { } entry)
-                return UnprocessableEntity();
+                ProblemBuilder builder = new();
+                builder.Check(req.LobbyName, v => v.IsBlank(), "Lobby name is required.");
+                builder.Check(req.LobbyName, v => v is { Length: > 40 }, "Lobby name must be 40 characters or fewer.");
+                builder.Check(req.CustomData, v => v?.Length > 512, "Custom data must be 512 characters or fewer.");
+                builder.Check(req.MaxPlayers, v => v is < Lobby.DefaultMinPlayers or > Lobby.DefaultMaxPlayers,
+                    $"Maximum players must be at least {Lobby.DefaultMinPlayers} and at most {Lobby.DefaultMaxPlayers}.");
 
-            var response = Mapper.MapEnterResponse(entry);
-            return Ok(response);
-        });
+                if (builder.GetProblems(out var problems))
+                    return problems;
 
-        api.MapPost("/enter", Results<Ok<EnterLobbyResponse>, BadRequest, NotFound, UnprocessableEntity> (
+                if (req.ForceCreation && repository.Find(req.LobbyName, game) is { } found)
+                {
+                    if (req.RecreationKey is { } recreationKey && found.RecreationKey == recreationKey)
+                        repository.Remove(found);
+                    else
+                        return Conflict();
+                }
+
+                if (repository.GetOrCreate(req.LobbyName, game, req.MaxPlayers, req.RecreationKey, req.CustomData)
+                        is not { } lobby ||
+                    repository.Enter(lobby, userIp, req.Username, req.Mode, req.NetType, req.Version,
+                            req.LocalEndpoint)
+                        is not { } entry)
+                    return UnprocessableEntity();
+
+                var response = Mapper.MapEnterResponse(entry);
+                return Ok(response);
+            });
+
+        api.MapPost("/enter", Results<
+            Ok<EnterLobbyResponse>,
+            BadRequest<string>,
+            NotFound, UnprocessableEntity
+        > (
             HttpContext context,
             LobbyRepository repository,
             EnterLobbyRequest req,
             int game = 0
         ) =>
         {
-            if (string.IsNullOrWhiteSpace(req.LobbyName) || context.GetRemoteClientIP() is not { } userIp)
-                return BadRequest();
+            if (context.GetRemoteClientIP() is not { } userIp)
+                return BadRequest("Unable to determine the client IP address.");
+
+            if (string.IsNullOrWhiteSpace(req.LobbyName))
+                return BadRequest("Lobby name is required.");
 
             if (repository.Find(req.LobbyName, game) is not { } lobby)
                 return NotFound();

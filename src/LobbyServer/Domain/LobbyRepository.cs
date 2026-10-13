@@ -12,7 +12,13 @@ public sealed class LobbyRepository(
 {
     static string MountKey(string name, int gameId) => $"lobby[{gameId}]::{name.NormalizedName()}";
 
-    public Lobby? GetOrCreate(string name, int gameId, int? maxPlayers = null, Guid? recreationKey = null)
+    public Lobby? GetOrCreate(
+        string name,
+        int gameId,
+        int? maxPlayers = null,
+        Guid? recreationKey = null,
+        string? customData = null
+    )
     {
         var lobbyName = name.NormalizedName();
         var lobbyKey = MountKey(lobbyName, gameId);
@@ -27,9 +33,12 @@ public sealed class LobbyRepository(
                 expiration: expiration,
                 purgeTimeout: settings.Value.PurgeTimeout,
                 createdAt: time.GetUtcNow(),
-                maxPlayers: maxPlayers,
-                recreationKey: recreationKey
-            );
+                maxPlayers: maxPlayers
+            )
+            {
+                RecreationKey = recreationKey,
+                CustomData = customData,
+            };
         });
     }
 

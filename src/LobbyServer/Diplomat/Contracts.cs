@@ -23,7 +23,8 @@ public sealed record CreateLobbyRequest(
     int? MaxPlayers = null,
     Guid? RecreationKey = null,
     PeerNetType? NetType = null,
-    string? Version = null
+    string? Version = null,
+    string? CustomData = null
 );
 
 [Serializable]
@@ -70,6 +71,7 @@ public sealed record LobbyResponse(
     DateTimeOffset ExpiresAt,
     PeerId? OwnerId,
     bool Ready,
+    string? CustomData,
     IEnumerable<PeerResponse> Players,
     IEnumerable<PeerResponse> Spectators,
     SpectatorMapping[] SpectatorMapping

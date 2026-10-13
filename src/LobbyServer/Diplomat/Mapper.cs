@@ -42,6 +42,7 @@ public static class Mapper
                 ExpiresAt: lobby.ExpiresAt,
                 OwnerId: lobby.Owner,
                 Ready: lobby.IsReady(),
+                CustomData: lobby.CustomData,
                 Players: Map(lobby.GetPlayers()),
                 Spectators: Map(lobby.GetSpectators()),
                 SpectatorMapping: lobby.MountSpectatorMapping()

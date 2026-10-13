@@ -7,26 +7,26 @@ public sealed class Lobby(
     TimeSpan expiration,
     TimeSpan purgeTimeout,
     DateTimeOffset createdAt,
-    int? maxPlayers = null,
-    Guid? recreationKey = null
+    int? maxPlayers = null
 )
 {
-    const int DefaultMinPlayers = 2;
-    const int DefaultMaxPlayers = 4;
+    public const int DefaultMinPlayers = 2;
+    public const int DefaultMaxPlayers = 4;
 
     readonly List<LobbyEntry> entries = [];
     internal readonly Lock Locker = new();
 
     public Guid Id { get; } = Guid.NewGuid();
     public string Key { get; } = key;
-    public Guid? RecreationKey { get; } = recreationKey;
     public string Name { get; } = name;
     public PeerId? Owner { get; private set; }
     public DateTimeOffset CreatedAt { get; } = createdAt;
     public TimeSpan ExpirationTime { get; } = expiration;
     public DateTimeOffset ExpiresAt => CreatedAt + ExpirationTime;
-
     public int MaxPlayers { get; } = Math.Max(maxPlayers ?? DefaultMaxPlayers, DefaultMinPlayers);
+    public Guid? RecreationKey { get; init; }
+    public string? CustomData { get; init; }
+
     public IEnumerable<LobbyEntry> GetPlayers() => entries.Where(x => x.Mode is PeerMode.Player);
     public IEnumerable<LobbyEntry> GetSpectators() => entries.Where(x => x.Mode is PeerMode.Spectator);
 
