@@ -38,6 +38,7 @@ public static class Routes
                 ProblemBuilder builder = new();
                 builder.Check(req.LobbyName, v => v.IsBlank(), "Lobby name is required.");
                 builder.Check(req.LobbyName, v => v is { Length: > 40 }, "Lobby name must be 40 characters or fewer.");
+                builder.Check(req.Username, v => v.IsBlank(), "Username is required.");
                 builder.Check(req.CustomData, v => v?.Length > 512, "Custom data must be 512 characters or fewer.");
                 builder.Check(req.MaxPlayers, v => v is < Lobby.DefaultMinPlayers or > Lobby.DefaultMaxPlayers,
                     $"Maximum players must be at least {Lobby.DefaultMinPlayers} and at most {Lobby.DefaultMaxPlayers}.");
@@ -78,8 +79,8 @@ public static class Routes
             if (context.GetRemoteClientIP() is not { } userIp)
                 return BadRequest("Unable to determine the client IP address.");
 
-            if (string.IsNullOrWhiteSpace(req.LobbyName))
-                return BadRequest("Lobby name is required.");
+            if (req.LobbyName.IsBlank()) return BadRequest("Lobby name is required.");
+            if (req.Username.IsBlank()) return BadRequest("Username is required.");
 
             if (repository.Find(req.LobbyName, game) is not { } lobby)
                 return NotFound();
@@ -122,13 +123,14 @@ public static class Routes
             return NoContent();
         });
 
-        api.MapPut("/ready", Results<NoContent, NotFound> (
+        api.MapPut("/ready", Results<NoContent, NotFound, UnprocessableEntity> (
             LobbyRepository repository,
             [FromHeader] EntryToken token
         ) =>
         {
             if (repository.FindEntry(token) is not { } entry) return NotFound();
-            entry.ToggleReady();
+            if (entry.Lobby is not { } lobby) return UnprocessableEntity();
+            lock (lobby.Locker) entry.ToggleReady();
             return NoContent();
         });
 

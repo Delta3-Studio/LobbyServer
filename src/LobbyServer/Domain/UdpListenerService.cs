@@ -19,7 +19,7 @@ public partial class UdpListenerService(
         logger.LogInformation("UDP BINDING HOST: {Host}", settings.Value.UdpHost);
 
         var hostAddresses =
-            string.IsNullOrWhiteSpace(settings.Value.UdpHost)
+            settings.Value.UdpHost.IsBlank()
                 ? []
                 : await Dns.GetHostAddressesAsync(
                     settings.Value.UdpHost, AddressFamily.InterNetwork, stoppingToken);
@@ -33,7 +33,8 @@ public partial class UdpListenerService(
         socket.Bind(bindEndpoint);
         IPEndPoint anyEndPoint = new(IPAddress.Any, 0);
 
-        var buffer = GC.AllocateArray<byte>(Unsafe.SizeOf<Guid>(), pinned: true);
+        var pkgSize = Unsafe.SizeOf<Guid>();
+        var buffer = GC.AllocateArray<byte>(pkgSize + 1, pinned: true);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -48,6 +49,7 @@ public partial class UdpListenerService(
 
                 LogReceived(logger, receivedSize, remoteEndPoint);
 
+                if (receivedSize != pkgSize) continue;
                 Guid peerToken = new(buffer.AsSpan(0, receivedSize), true);
                 if (peerToken == Guid.Empty) continue;
 
@@ -59,8 +61,14 @@ public partial class UdpListenerService(
                 if (entry.Peer.Endpoint is not null && !entry.Peer.Endpoint.Equals(remoteEndPoint))
                     LogPlayerAddressChanged(logger, entry.Peer.Username, entry.Peer.Endpoint, remoteEndPoint);
 
-                entry.Peer.Endpoint = remoteEndPoint;
-                entry.LastRead = time.GetUtcNow();
+                if (entry.Lobby is { } lobby)
+                {
+                    lock (lobby.Locker)
+                    {
+                        entry.Peer.Endpoint = remoteEndPoint;
+                        entry.LastRead = time.GetUtcNow();
+                    }
+                }
             }
             catch (OperationCanceledException)
             {

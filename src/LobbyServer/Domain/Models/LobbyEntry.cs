@@ -10,8 +10,6 @@ public sealed class LobbyEntry(Peer peer, PeerMode mode)
 
     internal Lobby? Lobby { get; set; }
 
-    public void ToggleReady() => Ready = Mode is PeerMode.Player && !Ready;
-
     public bool Owns(Lobby lobby) => Peer.Id != PeerId.Empty && lobby.Owner == Peer.Id;
 
     public void SetMode(PeerMode mode)
@@ -19,4 +17,6 @@ public sealed class LobbyEntry(Peer peer, PeerMode mode)
         Mode = mode;
         Ready = false;
     }
+
+    public void ToggleReady() => Ready = Mode is PeerMode.Player && !Ready;
 }

@@ -21,8 +21,9 @@ public sealed class Lobby(
     public string Name { get; } = name;
     public PeerId? Owner { get; private set; }
     public DateTimeOffset CreatedAt { get; } = createdAt;
+    public DateTimeOffset UpdatedAt { get; private set; } = createdAt;
     public TimeSpan ExpirationTime { get; } = expiration;
-    public DateTimeOffset ExpiresAt => CreatedAt + ExpirationTime;
+    public DateTimeOffset ExpiresAt => UpdatedAt + ExpirationTime;
     public int MaxPlayers { get; } = Math.Max(maxPlayers ?? DefaultMaxPlayers, DefaultMinPlayers);
     public Guid? RecreationKey { get; init; }
     public string? CustomData { get; init; }
@@ -74,6 +75,9 @@ public sealed class Lobby(
 
     public LobbyEntry? FindPeer(PeerId peerId) => entries.Find(p => p.Peer.Id == peerId);
     public LobbyEntry? FindOwner() => Owner is not { } ownerId ? null : FindPeer(ownerId);
+
+    public void SetUpdated(DateTimeOffset date) =>
+        UpdatedAt = date > UpdatedAt ? date : UpdatedAt;
 
     public bool IsEmpty() => entries is [];
 

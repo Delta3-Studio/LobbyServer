@@ -24,7 +24,7 @@ public sealed class LobbyRepository(
         var lobbyKey = MountKey(lobbyName, gameId);
         var expiration = settings.Value.LobbyExpiration;
 
-        return cache.GetOrCreate(lobbyKey, e =>
+        var lobby = cache.GetOrCreate(lobbyKey, e =>
         {
             e.SetSlidingExpiration(expiration);
             return new Lobby(
@@ -40,6 +40,9 @@ public sealed class LobbyRepository(
                 CustomData = customData,
             };
         });
+
+        SetUpdated(lobby);
+        return lobby;
     }
 
     public LobbyEntry? Enter(
@@ -93,19 +96,28 @@ public sealed class LobbyRepository(
 
         return (cache as MemoryCache)?.Keys.OfType<string>()
                .Where(key => key.StartsWith(prefix))
-               .Select(cache.Get<Lobby>)
-               .Where(l => l is not null && !l.IsReady())
-               .OrderByDescending(l => l?.CreatedAt)
+               .Select(FindByKey)
+               .Where(l =>
+               {
+                   if (l is null) return false;
+                   lock (l.Locker) return !l.IsReady();
+               })
+               .OrderByDescending(l => l?.UpdatedAt)
                .Cast<Lobby>()
                ?? [];
+    }
+
+    Lobby? FindByKey(string key)
+    {
+        if (cache.Get<Lobby>(key) is not { } lobby || Purge(lobby)) return null;
+        SetUpdated(lobby);
+        return lobby;
     }
 
     public Lobby? Find(string name, int gameId)
     {
         var key = MountKey(name.NormalizedName(), gameId);
-        if (cache.Get<Lobby>(key) is not { } lobby) return null;
-        Purge(lobby);
-        return lobby;
+        return FindByKey(key);
     }
 
     public LobbyEntry? FindEntry(EntryToken entryToken)
@@ -114,16 +126,24 @@ public sealed class LobbyRepository(
             return null;
 
         var now = time.GetUtcNow();
-        entry.LastRead = now;
 
-        if (entry.Lobby?.FindEntry(entry.Token) is null || cache.Get<Lobby>(entry.Lobby.Key) is not { } lobby)
+        if (entry.Lobby is not { } lobby)
         {
             cache.Remove(entryToken);
             return null;
         }
 
-        Purge(lobby);
-        return entry;
+        lock (lobby.Locker)
+        {
+            entry.LastRead = now;
+            if (lobby.FindEntry(entry.Token) is null || FindByKey(lobby.Key) is null)
+            {
+                cache.Remove(entryToken);
+                return null;
+            }
+
+            return entry;
+        }
     }
 
     public void Remove(Lobby lobby)
@@ -162,17 +182,24 @@ public sealed class LobbyRepository(
         {
             if (lobby.IsReady() || lobby.IsFull()) return false;
             entry.SetMode(mode);
-            Purge(lobby);
-            return true;
+            return !Purge(lobby);
         }
     }
 
-    public void Purge(Lobby lobby)
+    void SetUpdated(Lobby? lobby)
+    {
+        if (lobby is null) return;
+        lock (lobby.Locker) lobby.SetUpdated(time.GetUtcNow());
+    }
+
+    bool Purge(Lobby lobby)
     {
         lock (lobby.Locker)
         {
             lobby.Purge(time.GetUtcNow());
-            if (lobby.IsEmpty()) Remove(lobby);
+            if (!lobby.IsEmpty()) return false;
+            Remove(lobby);
+            return true;
         }
     }
 }
